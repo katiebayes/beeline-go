@@ -47,9 +47,13 @@ func StartSpanOrTraceFromHTTP(r *http.Request) (context.Context, *trace.Span) {
 	span := trace.GetSpanFromContext(ctx)
 	if span == nil {
 		// there is no trace yet. We should make one! and use the root span.
-		beelineHeader := r.Header.Get(propagation.TracePropagationHTTPHeader)
+		var headerProp *propagation.Propagation
+		if trace.GlobalConfig.TraceHeaderParserHook != nil {
+			// TODO: decide what to do on error
+			headerProp, _ = trace.GlobalConfig.TraceHeaderParserHook(r)
+		}
 		var tr *trace.Trace
-		ctx, tr = trace.NewTrace(ctx, beelineHeader)
+		ctx, tr = trace.NewTrace(ctx, headerProp)
 		span = tr.GetRootSpan()
 	} else {
 		// we had a parent! let's make a new child for this handler
@@ -184,7 +188,7 @@ func BuildDBSpan(ctx context.Context, bld *libhoney.Builder, stats sql.DBStats, 
 		// least confusing possibility. Would be nice to indicate this had
 		// happened in a better way than yet another meta. field.
 		var tr *trace.Trace
-		ctx, tr = trace.NewTrace(ctx, "")
+		ctx, tr = trace.NewTrace(ctx, nil)
 		span = tr.GetRootSpan()
 		span.AddField("meta.orphaned", true)
 	} else {

@@ -3,12 +3,14 @@ package beeline
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/honeycombio/libhoney-go/transmission"
 
 	"github.com/honeycombio/beeline-go/client"
+	"github.com/honeycombio/beeline-go/propagation"
 	"github.com/honeycombio/beeline-go/sample"
 	"github.com/honeycombio/beeline-go/trace"
 	libhoney "github.com/honeycombio/libhoney-go"
@@ -52,6 +54,11 @@ type Config struct {
 	// event before it gets sent to Honeycomb. Does not get invoked if the event
 	// is going to be dropped because of sampling. Runs after the SamplerHook.
 	PresendHook func(map[string]interface{})
+	// TraceHeaderParserHook is a function call that will get run with the http
+	// request before creating a Honeycomb span. The function registered here may
+	// create and return a Propagation containing ids and context obtained from
+	// http trace context headers.
+	TraceHeaderParserHook func(r *http.Request) (*propagation.Propagation, error)
 
 	// APIHost is the hostname for the Honeycomb API server to which to send
 	// this event. default: https://api.honeycomb.io/
@@ -179,6 +186,11 @@ func Init(config Config) {
 	if config.PresendHook != nil {
 		trace.GlobalConfig.PresendHook = config.PresendHook
 	}
+
+	if config.TraceHeaderParserHook != nil {
+		trace.GlobalConfig.TraceHeaderParserHook = config.TraceHeaderParserHook
+	}
+
 	return
 }
 
@@ -257,7 +269,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, *trace.Span) 
 		// there is no trace active; we should make one, but use the root span
 		// as the "new" span instead of creating a child of this mostly empty
 		// span
-		ctx, _ = trace.NewTrace(ctx, "")
+		ctx, _ = trace.NewTrace(ctx, nil)
 		newSpan = trace.GetSpanFromContext(ctx)
 	}
 	newSpan.AddField("name", name)

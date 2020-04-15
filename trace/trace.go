@@ -2,6 +2,7 @@ package trace
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 
@@ -21,6 +22,10 @@ type Config struct {
 	// PresendHook is a function to mutate spans just before they are sent to
 	// Honeycomb. See the docs for `beeline.Config` for a full description.
 	PresendHook func(map[string]interface{})
+	// TraceHeaderParserHook is a function to parse trace context from incoming
+	// request headers. See the docs for `beeline.TraceHeadersConfig` for a full
+	// description.
+	TraceHeaderParserHook func(r *http.Request) (*propagation.Propagation, error)
 }
 
 // Trace holds some trace level state and the root of the span tree that will be
@@ -42,26 +47,22 @@ type Trace struct {
 // NewTrace creates a brand new trace. serializedHeaders is optional, and if
 // included, should be the header as written by trace.SerializeHeaders(). When
 // not starting from an upstream trace, pass the empty string here.
-func NewTrace(ctx context.Context, serializedHeaders string) (context.Context, *Trace) {
+func NewTrace(ctx context.Context, prop *propagation.Propagation) (context.Context, *Trace) {
 	trace := &Trace{
 		builder:          client.NewBuilder(),
 		rollupFields:     make(map[string]float64),
 		traceLevelFields: make(map[string]interface{}),
 	}
-	if serializedHeaders != "" {
-		prop, err := propagation.UnmarshalTraceContext(serializedHeaders)
-		if err == nil {
-			trace.traceID = prop.TraceID
-			trace.parentID = prop.ParentID
-			for k, v := range prop.TraceContext {
-				trace.traceLevelFields[k] = v
-			}
-			if prop.Dataset != "" {
-				trace.builder.Dataset = prop.Dataset
-			}
+	if prop != nil {
+		trace.traceID = prop.TraceID
+		trace.parentID = prop.ParentID
+		for k, v := range prop.TraceContext {
+			trace.traceLevelFields[k] = v
+		}
+		if prop.Dataset != "" {
+			trace.builder.Dataset = prop.Dataset
 		}
 	}
-
 	if trace.traceID == "" {
 		trace.traceID = uuid.Must(uuid.NewRandom()).String()
 	}
@@ -78,6 +79,7 @@ func NewTrace(ctx context.Context, serializedHeaders string) (context.Context, *
 	// put trace and root span in context
 	ctx = PutTraceInContext(ctx, trace)
 	ctx = PutSpanInContext(ctx, rootSpan)
+
 	return ctx, trace
 }
 

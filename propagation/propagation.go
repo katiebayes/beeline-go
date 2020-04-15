@@ -25,8 +25,9 @@ import (
 // ex: X-Honeycomb-Trace: 1;trace_id=weofijwoeifj,parent_id=owefjoweifj,context=SGVsbG8gV29ybGQ=
 
 const (
-	TracePropagationHTTPHeader = "X-Honeycomb-Trace"
-	TracePropagationVersion    = 1
+	HoneycombTracePropagationHTTPHeader = "X-Honeycomb-Trace"
+	HoneycombTracePropagationVersion    = 1
+	AmazonTracePropagationHTTPHeader    = "X-Amzn-Trace-Id"
 )
 
 type Propagation struct {
@@ -64,7 +65,7 @@ func MarshalTraceContext(prop *Propagation) string {
 
 	return fmt.Sprintf(
 		"%d;trace_id=%s,parent_id=%s,%scontext=%s",
-		TracePropagationVersion,
+		HoneycombTracePropagationVersion,
 		prop.TraceID,
 		prop.ParentID,
 		datasetClause,
@@ -72,11 +73,32 @@ func MarshalTraceContext(prop *Propagation) string {
 	)
 }
 
-func UnmarshalTraceContext(header string) (*Propagation, error) {
+func UnmarshalAmazonTraceContext(header string) (*Propagation, error) {
+	segments := strings.Split(header, ";")
+	var prop = &Propagation{}
+
+	for _, segment := range segments {
+		keyval := strings.SplitN(segment, "=", 2)
+		switch strings.ToLower(keyval[0]) {
+		case "self":
+			prop.ParentID = keyval[1]
+		case "root":
+			prop.TraceID = keyval[1]
+		}
+	}
+
+	if prop.TraceID == "" && prop.ParentID != "" {
+		return nil, &PropagationError{"paretn_id without trace_id", nil}
+	}
+
+	return prop, nil
+}
+
+func UnmarshalHoneycombTraceContext(header string) (*Propagation, error) {
 	// pull the version out of the header
 	getVer := strings.SplitN(header, ";", 2)
 	if getVer[0] == "1" {
-		return UnmarshalTraceContextV1(getVer[1])
+		return UnmarshalHoneycombTraceContextV1(getVer[1])
 	}
 	return nil, &PropagationError{fmt.Sprintf("unrecognized version for trace header %s", getVer[0]), nil}
 }
@@ -84,7 +106,7 @@ func UnmarshalTraceContext(header string) (*Propagation, error) {
 // UnmarshalTraceContextV1 takes the trace header, stripped of the version
 // string, and returns the component parts. Trace ID and Parent ID are both
 // required. If either is absent a nil trace header will be returned.
-func UnmarshalTraceContextV1(header string) (*Propagation, error) {
+func UnmarshalHoneycombTraceContextV1(header string) (*Propagation, error) {
 	clauses := strings.Split(header, ",")
 	var prop = &Propagation{}
 	var tcB64 string
