@@ -87,8 +87,15 @@ func UnmarshalAmazonTraceContext(header string) (*Propagation, error) {
 		}
 	}
 
+	// If no header is provided to an ALB or ELB, it will generate a header
+	// with a Root field and forwards the request. In this case it should be
+	// used as both the parent id and the trace id.
+	if prop.TraceID != "" && prop.ParentID == "" {
+		prop.ParentID = prop.TraceID
+	}
+
 	if prop.TraceID == "" && prop.ParentID != "" {
-		return nil, &PropagationError{"paretn_id without trace_id", nil}
+		return nil, &PropagationError{"parent_id without trace_id", nil}
 	}
 
 	return prop, nil
