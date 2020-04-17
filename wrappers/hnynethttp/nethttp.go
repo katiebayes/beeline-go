@@ -156,7 +156,15 @@ func (ht *hnyTripper) spanRoundTrip(ctx context.Context, span *trace.Span, r *ht
 	}
 	span.AddField("meta.type", "http_client")
 	span.AddField("name", "http_client")
-	r.Header.Add(propagation.TracePropagationHTTPHeader, span.SerializeHeaders())
+
+	if trace.GlobalConfig.TraceHeaderPropagationHook != nil {
+		tracingHeaders := trace.GlobalConfig.TraceHeaderPropagationHook(r)
+		for key, value := range tracingHeaders {
+			r.Header.Add(key, value)
+		}
+	} else {
+		r.Header.Add(propagation.HoneycombTracePropagationHTTPHeader, span.SerializeHeaders())
+	}
 
 	resp, err := ht.wrt.RoundTrip(r)
 

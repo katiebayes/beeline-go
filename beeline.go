@@ -59,6 +59,11 @@ type Config struct {
 	// create and return a Propagation containing ids and context obtained from
 	// http trace context headers.
 	TraceHeaderParserHook func(r *http.Request) (*propagation.Propagation, error)
+	// TraceHeaderPropagationHook is a function to selectively instrument outgoing
+	// requests with trace header propagation headers. The function registered
+	// here may create and return a list of key value pairs that are added as
+	// headers to the outgoing request.
+	TraceHeaderPropagationHook func(r *http.Request) map[string]string
 
 	// APIHost is the hostname for the Honeycomb API server to which to send
 	// this event. default: https://api.honeycomb.io/
@@ -189,6 +194,10 @@ func Init(config Config) {
 
 	if config.TraceHeaderParserHook != nil {
 		trace.GlobalConfig.TraceHeaderParserHook = config.TraceHeaderParserHook
+	}
+
+	if config.TraceHeaderPropagationHook != nil {
+		trace.GlobalConfig.TraceHeaderPropagationHook = config.TraceHeaderPropagationHook
 	}
 
 	return

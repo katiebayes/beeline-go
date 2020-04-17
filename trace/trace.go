@@ -23,9 +23,12 @@ type Config struct {
 	// Honeycomb. See the docs for `beeline.Config` for a full description.
 	PresendHook func(map[string]interface{})
 	// TraceHeaderParserHook is a function to parse trace context from incoming
-	// request headers. See the docs for `beeline.TraceHeadersConfig` for a full
-	// description.
+	// request headers. See the docs for `beeline.Config` for a full description.
 	TraceHeaderParserHook func(r *http.Request) (*propagation.Propagation, error)
+	// TraceHeaderPropagationHook is a function to selectively instrument outgoing
+	// requests with trace header propagation headers. See the docs for
+	// `beeline.Config` for a full description.
+	TraceHeaderPropagationHook func(r *http.Request) map[string]string
 }
 
 // Trace holds some trace level state and the root of the span tree that will be
